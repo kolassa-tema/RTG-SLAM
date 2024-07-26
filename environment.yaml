@@ -1,4 +1,4 @@
-name: RTG-SLAM
+name: base
 channels:
   - pytorch
   - conda-forge
@@ -13,6 +13,7 @@ dependencies:
   - torchaudio=0.13.1
   - torchvision=0.14.1
   - tqdm
+  - mkl==2024.0
   - tensorboard
   - torchmetrics
   - pytorch3d
@@ -27,5 +28,6 @@ dependencies:
     - matplotlib
     - GPUtil
     - submodules/cuda_utils
-    - submodules/diff-gaussian-rasterizer-depth
     - submodules/simple-knn
+    - submodules/diff-gaussian-rasterizer-depth
+    - numpy<2.0

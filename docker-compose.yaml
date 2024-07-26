@@ -1,0 +1,27 @@
+
+services:
+  rtg-slam:
+    shm_size: '20gb'
+    build:
+      context: .
+      args:
+        CUDA_VERSION: 11.8.0
+        CUDA_ARCHITECTURES: 86
+        OS_VERSION: 22.04
+    command: tail -f /dev/null
+    volumes:
+      - ./:/workspace
+      - capture:/capture
+    deploy:
+      resources:
+        limits:
+          memory: 30G
+        reservations:
+          memory: 20G
+          devices:
+            - count: all
+              capabilities: [gpu]
+    memswap_limit: 64G
+volumes:
+  capture:
+    external: true
