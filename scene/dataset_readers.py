@@ -703,6 +703,7 @@ def readReplicaCameras(color_paths, depth_paths, poses, config, indices):
 
         depth_scale = config["scale"]
         image_color = Image.open(color_paths[idx])
+        #, dtype=np.float32
         image_depth = Image.fromarray(
             np.asarray(Image.open(depth_paths[idx])) / depth_scale
         )
@@ -788,7 +789,7 @@ def readReplicaSceneInfo(
             poses.append(c2w)
         return poses
 
-    color_paths = sorted(glob.glob(f"{datapath}/results/frame*.jpg"))
+    color_paths = sorted(glob.glob(f"{datapath}/results/frame*.*"))
     depth_paths = sorted(glob.glob(f"{datapath}/results/depth*.png"))
     n_img = len(color_paths)
     timestamps = [i / 30.0 for i in range(n_img)]
@@ -885,6 +886,13 @@ def readCameras(
         image_depth = (
             np.asarray(Image.open(depth_paths[idx]), dtype=np.float32) / depth_scale
         )
+        
+        if len(image_depth.shape) > 2:
+            # Remove singleton dimensions and take first channel if multi-channel
+            image_depth = np.squeeze(image_depth)
+            if len(image_depth.shape) > 2:
+                image_depth = image_depth[:, :, 0]
+
         image_color = np.asarray(
             image_color.resize((image_depth.shape[1], image_depth.shape[0]))
         )
