@@ -60,6 +60,8 @@ def main():
         )
 
         print("\n========== curr frame is: %d ==========\n" % frame_id)
+        print("Position: ", curr_frame.get_c2w[:3, 3])
+        
         move_to_gpu(curr_frame)
         start_time = time.time()
         # tracker process
@@ -78,6 +80,10 @@ def main():
         gaussian_map.update_poses(new_poses)
         # mapper process
         gaussian_map.mapping(curr_frame, frame_map, frame_id, optimization_params)
+        scaling = gaussian_map.stable_pointcloud.get_scaling
+        # if scaling.numel() == 0:
+        #     print(f"[LOG] Skipping frame {frame_id} as pointcloud is empty.")
+        #     continue
 
         gaussian_map.get_render_output(curr_frame)
         gaussian_tracker.update_last_status(

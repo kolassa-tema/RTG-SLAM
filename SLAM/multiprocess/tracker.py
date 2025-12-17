@@ -238,6 +238,10 @@ class Tracker(object):
                 self.curr_frame["depth_map_orb"],
                 self.curr_frame["timestamp"],
             )
+            # self.orb_backend.process_image_mono(
+            #     self.curr_frame["color_map_orb"],
+            #     self.curr_frame["timestamp"],
+            # )
             time.sleep(0.005)
         traj_history = self.orb_backend.get_trajectory_points()
         pose_es_t1, _ = convert_poses(traj_history[-2:])
@@ -250,6 +254,9 @@ class Tracker(object):
             self.orb_backend = orbslam2.System(
                 self.orb_vocab_path, self.orb_settings_path, orbslam2.Sensor.RGBD
             )
+            # self.orb_backend = orbslam2.System(
+            #     self.orb_vocab_path, self.orb_settings_path, orbslam2.Sensor.MONOCULAR
+            # )
             self.orb_backend.set_use_viewer(False)
             self.orb_backend.initialize(self.orb_useicp)
 
@@ -260,6 +267,11 @@ class Tracker(object):
                 self.curr_frame["depth_map_orb"],
                 self.curr_frame["timestamp"],
             )
+            # self.orb_backend.process_image_mono(
+            #     self.curr_frame["color_map_orb"],
+            #     self.curr_frame["timestamp"]
+            # )
+
         self.status["initialized"] = True
 
     def tracking(self, frame, frame_map):

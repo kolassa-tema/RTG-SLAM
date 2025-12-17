@@ -54,7 +54,7 @@ def read_cam_params(path):
 	fx, fy = float(cam["fx"]), float(cam["fy"])
 	cx, cy = float(cam["cx"]), float(cam["cy"])
 	scale = float(cam.get("scale", 1.0))
-	return w, h, fx, fy, cx, cy, scale
+	return w, h, fx*1.5, fy*1.5, cx, cy, scale
 
 def read_traj(path):
 	"""
@@ -100,11 +100,11 @@ def backproject(depth_m, fx, fy, cx, cy, step=4):
 
 	# Backproject pixel coordinates to camera space (x, y, z)
 	r_cam = (valid_cols - cx) * valid_depth / fx
-	u_cam =-(valid_rows - cy) * valid_depth / fy
+	d_cam =(valid_rows - cy) * valid_depth / fy
 	f_cam = valid_depth
 
 	# Stack into Nx3 array of 3D points
-	points_camera_space = np.stack([r_cam,f_cam,u_cam], axis=1)
+	points_camera_space = np.stack([r_cam,d_cam,f_cam], axis=1)
 
 	# Return 3D points and corresponding pixel indices
 	return points_camera_space, (valid_cols.astype(np.int32), valid_rows.astype(np.int32))
@@ -125,14 +125,28 @@ def decode_depth_image(arr):
 		return cv2.cvtColor(arr, cv2.COLOR_BGR2GRAY).astype(np.float32)
 	raise ValueError("Unsupported depth image format")
 
+def flip_rgb(rgb: np.ndarray) -> np.ndarray:
+	"""
+	Flip RGB horizontally.
+	"""
+	if rgb is None:
+		return rgb
+	return cv2.flip(rgb, 1)
+
 def main():
 	ap = argparse.ArgumentParser(description="Visualize Replica RGB-D with Rerun (camera pose, depth, point cloud).")
 	ap.add_argument("dataset_root", type=str, help="Path containing cam_params.json, traj.txt, results/")
-	ap.add_argument("--max_frames", type=int, default=1, help="How many frames to stream")
+	ap.add_argument("--max_frames", type=int, default=10, help="How many frames to stream")
 	ap.add_argument("--start_idx", type=int, default=0, help="Starting frame index (matched number in filenames)")
 	ap.add_argument("--step", type=int, default=4, help="Subsample factor for point cloud")
 	ap.add_argument("--entity", type=str, default="world", help="Rerun entity root")
 	ap.add_argument("--pose_offset", type=int, default=0, help="Offset added to frame index when selecting pose (may be negative)")
+	ap.add_argument("--flip_rgb", action="store_true", help="Flip RGB horizontally")
+	ap.add_argument(
+		"--accumulate_points",
+		action="store_true",
+		help="Accumulate point clouds over all frames and display them at once",
+	)
 	args = ap.parse_args()
 
 	# Required files / dirs
@@ -180,7 +194,7 @@ def main():
 	rr.serve_web(open_browser=True)
 
 	# Coordinate convention for world
-	rr.log(args.entity, rr.ViewCoordinates.RUF, static=True)
+	rr.log(args.entity, rr.ViewCoordinates.RFU, static=True)
 	#
 
 	# Log the pinhole (intrinsics + resolution)
@@ -190,10 +204,14 @@ def main():
 			focal_length=np.array([fx, fy], dtype=np.float32),
 			principal_point=np.array([cx, cy], dtype=np.float32),
 			resolution=[w, h],
-			camera_xyz=rr.ViewCoordinates.RUF
+			camera_xyz=rr.ViewCoordinates.RDF
 		),
 		static=True,
 	)
+
+	# Optional accumulators
+	all_pts_world = []
+	all_colors = []
 
 	# Loop frames
 	# Apply start index filter
@@ -225,12 +243,12 @@ def main():
 			[0.0, 0.0, 1.0],
 			[0.0, 1.0, 0.0]
 		], dtype=np.float32)
-		# S_y = np.diag([1.0, -1.0, 1.0]).astype(np.float32)
+		S_y = np.diag([1.0, 0.0, 0.0]).astype(np.float32)
 		R = c2w[:3, :3] #
 
 		# Unity conversion
-		# R = S_y @ R_unity @ S_y  # camera (RUF) -> world (RUF)
-		# t = S_y @ t  # camera (RUF) -> world (RUF)
+		# R = S_y @ R_unity @ S_y  
+		# t = S_y @ t
 		# R to identity
 		# R = np.eye(3, dtype=np.float32)
 
@@ -244,24 +262,28 @@ def main():
 		if depth_raw is None:
 			continue
 		depth_scalar = decode_depth_image(depth_raw)
-		uniq_vals = np.unique(depth_scalar)
-		if uniq_vals.size <= 2 and 255 in uniq_vals and depth_scalar.dtype != np.float32:
-			depth_scalar[depth_scalar == 255] = 0
+		# uniq_vals = np.unique(depth_scalar)
+		# if uniq_vals.size <= 2 and 255 in uniq_vals and depth_scalar.dtype != np.float32:
+		# 	depth_scalar[depth_scalar == 255] = 0
 		depth_m = depth_to_meters(depth_scalar, scale_hint=scale)
 		depth_m[(depth_m <= 0) | (depth_m > 50.0)] = 0
 
+		# Optionally flip RGB to match depth image resolution
+		if args.flip_rgb:
+			color = flip_rgb(color)
+
 		# Pose transform (convert to quaternion because passing raw 3x3 now errors in newer Rerun)
 		quat = rotation_matrix_to_quaternion(R)
-		rr.log(f"{args.entity}/camera", rr.ViewCoordinates.RUF, rr.Transform3D(mat3x3=R, translation=t))
+		rr.log(f"{args.entity}/camera", rr.Transform3D(mat3x3=R, translation=t))
 
 
 		# Raw imagery
 		try:
-			rr.log(f"{args.entity}/camera/rgb",rr.ViewCoordinates.RUF,rr.Image(color))
+			rr.log(f"{args.entity}/camera/rgb",rr.Image(color))
 		except Exception as e:
 			print(f"[warn] Failed to log RGB image: {e}")
 		try:
-			rr.log(f"{args.entity}/camera/depth_m", rr.ViewCoordinates.RUF, rr.DepthImage(depth_m, meter=1.0))
+			rr.log(f"{args.entity}/camera/depth_m",  rr.DepthImage(depth_m, meter=1.0))
 		except Exception as e:
 			print(f"[warn] Failed to log depth image: {e}")
 
@@ -269,14 +291,39 @@ def main():
 		uu = np.clip(uu, 0, color.shape[1] - 1)
 		vv = np.clip(vv, 0, color.shape[0] - 1)
 		colors = color[vv, uu].reshape(-1, 3)
-		pts_world =((R @ pts_cam.T ).T + t)
+		pts_world = ((R @ pts_cam.T).T + t)
+
 		if pts_world.size == 0:
 			print("[info] No valid depth points for frame", idx)
 		else:
+			if args.accumulate_points:
+				all_pts_world.append(pts_world)
+				all_colors.append(colors)
+			else:
+				try:
+					rr.log(
+						f"{args.entity}/points",
+						rr.Points3D(pts_world, colors=colors, radii=0.005),
+					)
+				except Exception as e:
+					print(f"[warn] Failed to log point cloud: {e}")
+
+	# After all frames, log accumulated point cloud once
+	if args.accumulate_points and all_pts_world:
+		pts_world_cat = np.concatenate(all_pts_world, axis=0)
+		colors_cat = np.concatenate(all_colors, axis=0)
+		try:
+			# Use a final time step so it doesn't overwrite per-frame logs (if any)
 			try:
-				rr.log(f"{args.entity}/points",rr.ViewCoordinates.RUF, rr.Points3D(pts_world, colors=colors, radii=0.005))
-			except Exception as e:
-				print(f"[warn] Failed to log point cloud: {e}")
+				rr.set_time_sequence("frame", len(sel_indices))
+			except Exception:
+				pass
+			rr.log(
+				f"{args.entity}/points_accumulated",
+				rr.Points3D(pts_world_cat, colors=colors_cat, radii=0.005),
+			)
+		except Exception as e:
+			print(f"[warn] Failed to log accumulated point cloud: {e}")
 
 	print("Done. Inspect the Rerun viewer timeline and entities.")
 

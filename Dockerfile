@@ -32,7 +32,7 @@ libxvidcore-dev libx264-dev \
 libatlas-base-dev gfortran \
 ffmpeg \
 libopenh264-dev \
-libopencv-dev=4.5.4+dfsg-9ubuntu4
+libopencv-dev=4.5.4+dfsg-9ubuntu4 libxcb-xkb1 libxkbcommon-dev libxkbcommon-x11-0
 
 # Verify CUDA version
 RUN nvcc --version
@@ -53,5 +53,5 @@ RUN micromamba install -y -n base -f ./environment.yaml && \
 
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
 
-COPY --chown=$MAMBA_USER:$MAMBA_USER ./ /workspace/
+COPY --chown=$MAMBA_USER:$MAMBA_USER --chmod=755 ./ /workspace/
 USER $MAMBA_USER

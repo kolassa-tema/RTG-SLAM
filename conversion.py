@@ -5,6 +5,7 @@ from scipy.spatial.transform import Rotation as R
 import csv
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
+from PIL import Image
 import time
 
 
@@ -58,7 +59,23 @@ def conversion_function(position, rotation, principalX, principalY, focalX, foca
 
     # copy image
     image_path = os.path.join(image_folder, f"{index:05d}.jpg")
+    os.makedirs(os.path.join(base_path, 'color'), exist_ok=True)
     shutil.copy(image_path, os.path.join(base_path, 'color', f"{index:04d}.jpg"))
+
+    # copy depth
+    depth_path = os.path.join(depth_folder, f"{index:05d}.png")
+    os.makedirs(os.path.join(base_path, 'depth'), exist_ok=True)
+    destination_path = os.path.join(base_path, 'depth', f"{index:04d}.png")
+
+    # Open the image
+    image = Image.open(depth_path)
+
+    # Convert the image to grayscale
+    image = image.convert('L').convert('I;16').point(lambda i: i * 25)
+    
+
+    # Save the converted image to the destination path
+    image.save(destination_path)
 
 
 
@@ -99,6 +116,7 @@ if __name__ == "__main__":
     base_path = '/capture/rtg_slam'
     csv_file_path = '/capture/FullPoses.csv'
     image_folder = '/capture/images'
+    depth_folder = '/capture/depth'
 
     event_handler = CSVHandler(csv_file_path, base_path)
     observer = Observer()
@@ -112,3 +130,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
+
+
+
+    

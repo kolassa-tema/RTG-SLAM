@@ -145,6 +145,27 @@ def sample_pixels(
     uniform_sample_num,
     select_mask=None,
 ):
+    # Debug: print all input info
+    def _tensor_info(name, t):
+        if t is None:
+            return f"{name}: None"
+        return (f"{name}: shape={tuple(t.shape)}, dtype={t.dtype}, device={t.device}, "
+                f"min={t.min().item():.6f}, max={t.max().item():.6f}, "
+                f"nan={torch.isnan(t).any().item()}, inf={torch.isinf(t).any().item()}")
+
+    print("== sample_pixels debug ==")
+    print(_tensor_info("vertex_map", vertex_map))
+    print(_tensor_info("normal_map", normal_map))
+    print(_tensor_info("color_map", color_map))
+    print(f"uniform_sample_num: {uniform_sample_num}")
+    if select_mask is None:
+        print("select_mask: None")
+    else:
+        print(f"select_mask: shape={tuple(select_mask.shape)}, dtype={select_mask.dtype}, "
+              f"true={select_mask.sum().item()}, false={(~select_mask).sum().item()}")
+    # Check basic consistency
+    if (vertex_map.shape[:2] != normal_map.shape[:2]) or (vertex_map.shape[:2] != color_map.shape[:2]):
+        print("Warning: spatial shapes mismatch among inputs.")
     assert uniform_sample_num >= 0
     if uniform_sample_num == 0:
         return devF(torch.empty(0)), devF(torch.empty(0)), devF(torch.empty(0))

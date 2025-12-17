@@ -20,7 +20,7 @@ class ICP(nn.Module):
         damping=1e-6,
         distance_threshold=0.2,
         normal_threshold=20,
-        verbose=False,
+        verbose=True,
     ):
         super(ICP, self).__init__()
 

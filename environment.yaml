@@ -31,3 +31,4 @@ dependencies:
     - submodules/simple-knn
     - submodules/diff-gaussian-rasterizer-depth
     - numpy<2.0
+    - rerun-sdk
